@@ -16,6 +16,51 @@ export async function OPTIONS(request: NextRequest) {
   })
 }
 
+// 테스트용 GET 엔드포인트 - 특정 ID 기사 조회
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const articleId = searchParams.get('id')
+    
+    if (!articleId) {
+      return NextResponse.json(
+        { success: false, message: '기사 ID가 필요합니다' },
+        { status: 400, headers: corsHeaders }
+      )
+    }
+    
+    console.log('GET 요청 - 기사 조회:', { articleId })
+    console.log('환경변수 확인:', {
+      hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasSupabaseKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      supabaseUrlPreview: process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 30) + '...'
+    })
+    
+    const article = await newsService.getById(articleId)
+    
+    return NextResponse.json({
+      success: true,
+      data: {
+        found: !!article,
+        id: article?.id,
+        title: article?.title,
+        hasContent: !!article?.content,
+        contentLength: article?.content?.length || 0,
+        hasSummary: !!article?.summary
+      }
+    }, { headers: corsHeaders })
+    
+  } catch (error) {
+    console.error('GET 요청 오류:', error)
+    
+    return NextResponse.json({
+      success: false,
+      message: '기사 조회 중 오류가 발생했습니다',
+      error: error instanceof Error ? error.message : '알 수 없는 오류'
+    }, { status: 500, headers: corsHeaders })
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { articleId } = await request.json()
@@ -103,7 +148,9 @@ export async function PUT(request: NextRequest) {
     console.log('PUT /api/summarize 요청 시작')
     console.log('환경 변수 확인:', {
       hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-      hasSupabaseKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      hasSupabaseKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      supabaseUrlPreview: process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 30) + '...',
+      supabaseKeyPreview: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 20) + '...'
     })
     
     const requestBody = await request.json()

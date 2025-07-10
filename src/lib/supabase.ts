@@ -14,6 +14,11 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   },
 })
 
+// Supabase 클라이언트 getter 함수
+export function getSupabaseClient() {
+  return supabase
+}
+
 // 뉴스 기사 관련 함수들
 export const newsService = {
   // 모든 뉴스 기사 조회 (최신순)
