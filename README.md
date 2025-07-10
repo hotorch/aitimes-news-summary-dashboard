@@ -27,8 +27,8 @@ AI Times News Dashboard는 [aitimes.com](https://aitimes.com)에서 AI 뉴스를
 
 1. **저장소 클론**
    ```bash
-   git clone https://github.com/your-username/aitimes-news-dashboard.git
-   cd aitimes-news-dashboard
+   git clone https://github.com/hotorch/aitimes-news-summary-dashboard.git
+   cd aitimes-news-summary-dashboard
    ```
 
 2. **의존성 설치**
@@ -200,7 +200,7 @@ CREATE TABLE collection_logs (
 
 ## 📞 지원
 
-문제가 발생하거나 질문이 있으시면 [Issues](https://github.com/your-username/aitimes-news-dashboard/issues)를 통해 문의해 주세요.
+문제가 발생하거나 질문이 있으시면 [Issues](https://github.com/hotorch/aitimes-news-summary-dashboard/issues)를 통해 문의해 주세요.
 
 ---
 
