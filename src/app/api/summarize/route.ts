@@ -133,20 +133,59 @@ export async function PUT(request: NextRequest) {
         found: !!testQuery, 
         title: testQuery?.title?.substring(0, 50) 
       })
+      
+      if (!testQuery) {
+        console.log('기사를 찾을 수 없음:', articleId)
+        return NextResponse.json(
+          { success: false, message: '해당 ID의 기사를 찾을 수 없습니다' },
+          { status: 404, headers: corsHeaders }
+        )
+      }
     } catch (testError) {
       console.error('Supabase 연결 테스트 실패:', testError)
+      
+      // Supabase 에러 타입별 처리
+      if (testError && typeof testError === 'object' && 'code' in testError) {
+        const supabaseError = testError as any
+        if (supabaseError.code === 'PGRST116') {
+          // 데이터가 없는 경우
+          return NextResponse.json(
+            { success: false, message: '해당 ID의 기사를 찾을 수 없습니다' },
+            { status: 404, headers: corsHeaders }
+          )
+        }
+      }
+      
       throw new Error(`데이터베이스 연결 실패: ${testError instanceof Error ? testError.message : '알 수 없는 오류'}`)
     }
     
-    const updatedArticle = await newsService.updateSummary(articleId, summary)
-    console.log('요약 업데이트 성공:', { articleId: updatedArticle.id })
-    
-    return NextResponse.json({
-      success: true,
-      message: '요약이 성공적으로 저장되었습니다',
-      data: { articleId: updatedArticle.id }
-    }, { headers: corsHeaders })
-    
+    try {
+      const updatedArticle = await newsService.updateSummary(articleId, summary)
+      console.log('요약 업데이트 성공:', { articleId: updatedArticle.id })
+      
+      return NextResponse.json({
+        success: true,
+        message: '요약이 성공적으로 저장되었습니다',
+        data: { articleId: updatedArticle.id }
+      }, { headers: corsHeaders })
+      
+    } catch (updateError) {
+      console.error('요약 업데이트 실패:', updateError)
+      
+      // Supabase 에러 타입별 처리
+      if (updateError && typeof updateError === 'object' && 'code' in updateError) {
+        const supabaseError = updateError as any
+        if (supabaseError.code === 'PGRST116') {
+          // 업데이트할 데이터가 없는 경우
+          return NextResponse.json(
+            { success: false, message: '해당 ID의 기사를 찾을 수 없거나 업데이트할 수 없습니다' },
+            { status: 404, headers: corsHeaders }
+          )
+        }
+      }
+      
+      throw updateError
+    }
   } catch (error) {
     console.error('요약 업데이트 API 오류 (상세):', {
       error,
