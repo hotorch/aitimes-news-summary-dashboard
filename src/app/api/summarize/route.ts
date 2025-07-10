@@ -107,16 +107,25 @@ export async function PUT(request: NextRequest) {
     })
     
     const requestBody = await request.json()
-    console.log('요청 본문:', requestBody)
+    console.log('요청 본문 (상세):', JSON.stringify(requestBody, null, 2))
+    console.log('Request headers:', JSON.stringify(Object.fromEntries(request.headers.entries()), null, 2))
     
     const { articleId, summary } = requestBody
     
+    console.log('추출된 데이터:', {
+      articleId: articleId,
+      articleIdType: typeof articleId,
+      articleIdLength: articleId?.length,
+      summaryLength: summary?.length,
+      summaryType: typeof summary
+    })
+    
     if (!articleId || !summary) {
       console.log('필수 파라미터 누락:', { articleId: !!articleId, summary: !!summary })
-              return NextResponse.json(
-          { success: false, message: '기사 ID와 요약이 필요합니다' },
-          { status: 400, headers: corsHeaders }
-        )
+      return NextResponse.json(
+        { success: false, message: '기사 ID와 요약이 필요합니다' },
+        { status: 400, headers: corsHeaders }
+      )
     }
     
     console.log('요약 업데이트 시작:', { 
