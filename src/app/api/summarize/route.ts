@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { newsService } from '@/lib/supabase'
 
+// CORS 헤더 설정
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+}
+
+// OPTIONS 요청 처리 (CORS 프리플라이트)
+export async function OPTIONS(request: NextRequest) {
+  return new Response(null, {
+    status: 200,
+    headers: corsHeaders,
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { articleId } = await request.json()
@@ -8,7 +23,7 @@ export async function POST(request: NextRequest) {
     if (!articleId) {
       return NextResponse.json(
         { success: false, message: '기사 ID가 필요합니다' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       )
     }
     
@@ -20,7 +35,7 @@ export async function POST(request: NextRequest) {
     if (!article) {
       return NextResponse.json(
         { success: false, message: '기사를 찾을 수 없습니다' },
-        { status: 404 }
+        { status: 404, headers: corsHeaders }
       )
     }
     
@@ -66,7 +81,7 @@ export async function POST(request: NextRequest) {
         title: article.title,
         webhookSent: true 
       }
-    })
+    }, { headers: corsHeaders })
     
   } catch (error) {
     console.error('요약 생성 API 오류:', error)
@@ -77,7 +92,7 @@ export async function POST(request: NextRequest) {
         message: '요약 생성 중 오류가 발생했습니다',
         error: error instanceof Error ? error.message : '알 수 없는 오류'
       },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     )
   }
 }
@@ -85,35 +100,73 @@ export async function POST(request: NextRequest) {
 // Make.com에서 요약 완료 후 호출하는 콜백 엔드포인트
 export async function PUT(request: NextRequest) {
   try {
-    const { articleId, summary } = await request.json()
+    console.log('PUT /api/summarize 요청 시작')
+    console.log('환경 변수 확인:', {
+      hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasSupabaseKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    })
+    
+    const requestBody = await request.json()
+    console.log('요청 본문:', requestBody)
+    
+    const { articleId, summary } = requestBody
     
     if (!articleId || !summary) {
-      return NextResponse.json(
-        { success: false, message: '기사 ID와 요약이 필요합니다' },
-        { status: 400 }
-      )
+      console.log('필수 파라미터 누락:', { articleId: !!articleId, summary: !!summary })
+              return NextResponse.json(
+          { success: false, message: '기사 ID와 요약이 필요합니다' },
+          { status: 400, headers: corsHeaders }
+        )
     }
     
-    console.log('요약 업데이트:', { articleId, summaryLength: summary.length })
+    console.log('요약 업데이트 시작:', { 
+      articleId, 
+      summaryLength: summary.length,
+      summaryPreview: summary.substring(0, 100) + '...'
+    })
+    
+    // Supabase 연결 테스트
+    try {
+      console.log('Supabase 연결 테스트 중...')
+      const testQuery = await newsService.getById(articleId)
+      console.log('기사 조회 성공:', { 
+        found: !!testQuery, 
+        title: testQuery?.title?.substring(0, 50) 
+      })
+    } catch (testError) {
+      console.error('Supabase 연결 테스트 실패:', testError)
+      throw new Error(`데이터베이스 연결 실패: ${testError instanceof Error ? testError.message : '알 수 없는 오류'}`)
+    }
     
     const updatedArticle = await newsService.updateSummary(articleId, summary)
+    console.log('요약 업데이트 성공:', { articleId: updatedArticle.id })
     
     return NextResponse.json({
       success: true,
       message: '요약이 성공적으로 저장되었습니다',
       data: { articleId: updatedArticle.id }
-    })
+    }, { headers: corsHeaders })
     
   } catch (error) {
-    console.error('요약 업데이트 API 오류:', error)
+    console.error('요약 업데이트 API 오류 (상세):', {
+      error,
+      message: error instanceof Error ? error.message : '알 수 없는 오류',
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : undefined
+    })
     
-    return NextResponse.json(
-      {
-        success: false,
-        message: '요약 업데이트 중 오류가 발생했습니다',
-        error: error instanceof Error ? error.message : '알 수 없는 오류'
-      },
-      { status: 500 }
-    )
+          return NextResponse.json(
+        {
+          success: false,
+          message: '요약 업데이트 중 오류가 발생했습니다',
+          error: error instanceof Error ? error.message : '알 수 없는 오류',
+          debug: {
+            hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+            hasSupabaseKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+            timestamp: new Date().toISOString()
+          }
+        },
+        { status: 500, headers: corsHeaders }
+      )
   }
 } 

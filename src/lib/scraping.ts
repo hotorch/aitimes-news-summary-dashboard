@@ -186,38 +186,12 @@ export async function scrapeArticleDetails(url: string): Promise<{
                           html.match(/<img[^>]*src="([^"]*)"[^>]*class="[^"]*thumb[^"]*"/)
     const thumbnail_url = thumbnailMatch ? thumbnailMatch[1] : undefined
 
-    // 작성자 추출 - 더 정확한 패턴으로 개선
-    const authorPatterns = [
-      // AI Times의 일반적인 기자 표시 패턴들
-      /<div[^>]*class="[^"]*writer[^"]*"[^>]*>([^<]+)<\/div>/,
-      /<span[^>]*class="[^"]*writer[^"]*"[^>]*>([^<]+)<\/span>/,
-      /<div[^>]*class="[^"]*name[^"]*"[^>]*>([^<]+)<\/div>/,
-      /<span[^>]*class="[^"]*name[^"]*"[^>]*>([^<]+)<\/span>/,
-      // 일반적인 텍스트 패턴들
-      /기자\s*:?\s*([가-힣]{2,4})\s*기자?/,
-      /([가-힣]{2,4})\s*기자/,
-      /작성자\s*:?\s*([가-힣]{2,4})/,
-      /by\s+([가-힣]{2,4})/i,
-      /저자\s*:?\s*([가-힣]{2,4})/,
-      // 이메일 패턴에서 이름 추출
-      /([가-힣]{2,4})@[a-z0-9.-]+\.[a-z]{2,}/i,
-      // HTML 구조에서 기자 정보가 포함된 부분
-      /<p[^>]*>[^<]*?([가-힣]{2,4})\s*기자[^<]*?<\/p>/,
-      /<div[^>]*>[^<]*?([가-힣]{2,4})\s*기자[^<]*?<\/div>/
-    ]
-    
-    let author = undefined
-    for (const pattern of authorPatterns) {
-      const match = html.match(pattern)
-      if (match && match[1]) {
-        author = match[1].trim()
-        // 일반적이지 않은 문자나 너무 짧은/긴 이름 제외
-        if (author.length >= 2 && author.length <= 4 && /^[가-힣]+$/.test(author)) {
-          break
-        }
-        author = undefined
-      }
-    }
+    // 작성자 추출
+    const authorMatch = html.match(/<span[^>]*class="[^"]*writer[^"]*"[^>]*>([^<]+)<\/span>/) ||
+                       html.match(/기자[:\s]*([^<\s\n]+)/) ||
+                       html.match(/작성자[:\s]*([^<\s\n]+)/) ||
+                       html.match(/by\s+([^<\s\n]+)/i)
+    const author = authorMatch ? authorMatch[1].trim() : undefined
 
     // 발행일시 추출
     const dateMatch = html.match(/<time[^>]*datetime="([^"]+)"/) || 

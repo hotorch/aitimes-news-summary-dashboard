@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Suspense, useCallback } from 'react'
+import { useState, Suspense } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'next/navigation'
 import { Header } from '@/components/layout/header'
@@ -31,55 +31,96 @@ function DashboardContent() {
     staleTime: 2 * 60 * 1000, // 2분
   })
 
-  // 공통 뉴스 수집 함수
-  const createCollectionMutation = useCallback((endpoint: string, successMessage: string) => {
-    return useMutation({
-      mutationFn: async () => {
-        const log = await collectionService.create({
-          started_at: new Date().toISOString(),
-          total_articles: 10
-        })
+  // 최신 뉴스 수집 뮤테이션
+  const collectNewsMutation = useMutation({
+    mutationFn: async () => {
+      // 수집 로그 시작
+      const log = await collectionService.create({
+        started_at: new Date().toISOString(),
+        total_articles: 10
+      })
 
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ logId: log.id }),
-        })
+      const response = await fetch('/api/collect-news', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ logId: log.id }),
+      })
 
-        if (!response.ok) {
-          throw new Error(`${successMessage} 수집에 실패했습니다`)
-        }
+      if (!response.ok) {
+        throw new Error('최신 뉴스 수집에 실패했습니다')
+      }
 
-        return response.json()
-      },
-      onSuccess: () => {
-        toast({
-          title: `${successMessage} 수집 완료`,
-          description: `AI Times에서 ${successMessage}를 성공적으로 수집했습니다.`,
-        })
-        queryClient.invalidateQueries({ queryKey: ['news'] })
-      },
-      onError: (error) => {
-        toast({
-          title: '수집 실패',
-          description: error.message,
-          variant: 'destructive',
-        })
-      },
-    })
-  }, [toast, queryClient])
+      return response.json()
+    },
+    onSuccess: () => {
+      toast({
+        title: '최신 뉴스 수집 완료',
+        description: 'AI Times에서 최신 뉴스를 성공적으로 수집했습니다.',
+      })
+      queryClient.invalidateQueries({ queryKey: ['news'] })
+    },
+    onError: (error) => {
+      toast({
+        title: '수집 실패',
+        description: error.message,
+        variant: 'destructive',
+      })
+    },
+  })
 
-  // 뉴스 수집 뮤테이션들
-  const collectNewsMutation = createCollectionMutation('/api/collect-news', '최신 뉴스')
-  const collectTop10NewsMutation = createCollectionMutation('/api/collect-top10-news', 'TOP 10 뉴스')
+  // TOP 10 뉴스 수집 뮤테이션
+  const collectTop10NewsMutation = useMutation({
+    mutationFn: async () => {
+      // 수집 로그 시작
+      const log = await collectionService.create({
+        started_at: new Date().toISOString(),
+        total_articles: 10
+      })
+
+      const response = await fetch('/api/collect-top10-news', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ logId: log.id }),
+      })
+
+      if (!response.ok) {
+        throw new Error('TOP 10 뉴스 수집에 실패했습니다')
+      }
+
+      return response.json()
+    },
+    onSuccess: () => {
+      toast({
+        title: 'TOP 10 뉴스 수집 완료',
+        description: 'AI Times에서 인기 TOP 10 뉴스를 성공적으로 수집했습니다.',
+      })
+      queryClient.invalidateQueries({ queryKey: ['news'] })
+    },
+    onError: (error) => {
+      toast({
+        title: 'TOP 10 수집 실패',
+        description: error.message,
+        variant: 'destructive',
+      })
+    },
+  })
 
   // 요약 생성 뮤테이션
   const summarizeMutation = useMutation({
     mutationFn: async (articleId: string) => {
+      // Make.com webhook 호출 - articleId만 전송하면 API에서 데이터베이스에서 조회
       const response = await fetch('/api/summarize', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ articleId }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          articleId: articleId
+        }),
       })
 
       if (!response.ok) {
@@ -110,48 +151,55 @@ function DashboardContent() {
     },
   })
 
-  // 이벤트 핸들러들
-  const handleCollectNews = useCallback(() => collectNewsMutation.mutate(), [collectNewsMutation])
-  const handleCollectTop10News = useCallback(() => collectTop10NewsMutation.mutate(), [collectTop10NewsMutation])
-  const handleViewDetail = useCallback((article: NewsArticle) => setSelectedArticle(article), [])
-  const handleSummarize = useCallback((articleId: string) => summarizeMutation.mutate(articleId), [summarizeMutation])
-  const handleCloseModal = useCallback(() => setSelectedArticle(null), [])
+  const handleCollectNews = () => {
+    collectNewsMutation.mutate()
+  }
+
+  const handleCollectTop10News = () => {
+    collectTop10NewsMutation.mutate()
+  }
+
+  const handleViewDetail = (article: NewsArticle) => {
+    setSelectedArticle(article)
+  }
+
+  const handleSummarize = (articleId: string) => {
+    summarizeMutation.mutate(articleId)
+  }
 
   const showEmptyState = !isLoading && articles.length === 0
   const emptyStateType = query ? 'no-results' : 'no-data'
 
   return (
-    <div className="background-system">
-      <div className="relative z-10">
-        <Header 
-          onCollectNews={handleCollectNews}
-          onCollectTop10News={handleCollectTop10News}
-          isCollecting={collectNewsMutation.isPending}
-          isCollectingTop10={collectTop10NewsMutation.isPending}
-        />
-        
-        <main className="container mx-auto px-4 py-8">
-          {showEmptyState ? (
-            <EmptyState 
-              type={emptyStateType}
-              onCollectNews={emptyStateType === 'no-data' ? handleCollectNews : undefined}
-            />
-          ) : (
-            <NewsGrid
-              articles={articles}
-              onViewDetail={handleViewDetail}
-              onSummarize={handleSummarize}
-              summarizingId={summarizingId}
-              isLoading={isLoading}
-            />
-          )}
-        </main>
-      </div>
+    <div className="min-h-screen bg-primary-900">
+      <Header 
+        onCollectNews={handleCollectNews}
+        onCollectTop10News={handleCollectTop10News}
+        isCollecting={collectNewsMutation.isPending}
+        isCollectingTop10={collectTop10NewsMutation.isPending}
+      />
+      
+      <main className="container mx-auto px-4 py-8">
+        {showEmptyState ? (
+          <EmptyState 
+            type={emptyStateType}
+            onCollectNews={emptyStateType === 'no-data' ? handleCollectNews : undefined}
+          />
+        ) : (
+          <NewsGrid
+            articles={articles}
+            onViewDetail={handleViewDetail}
+            onSummarize={handleSummarize}
+            summarizingId={summarizingId}
+            isLoading={isLoading}
+          />
+        )}
+      </main>
 
       <NewsDetailModal
         article={selectedArticle}
         isOpen={!!selectedArticle}
-        onClose={handleCloseModal}
+        onClose={() => setSelectedArticle(null)}
         onSummarize={handleSummarize}
         isSummarizing={summarizingId === selectedArticle?.id}
       />
@@ -164,7 +212,7 @@ export default function Dashboard() {
     <Suspense fallback={
       <div className="min-h-screen bg-primary-900 flex items-center justify-center">
         <div className="glass-card p-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-500 mx-auto"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-to mx-auto"></div>
           <p className="text-neutral-100 mt-4 text-center">로딩 중...</p>
         </div>
       </div>

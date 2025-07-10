@@ -1,6 +1,7 @@
 'use client'
 
 import { Search, Download, Settings, TrendingUp } from 'lucide-react'
+import { GlassCard } from '@/components/ui/glass-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -34,15 +35,12 @@ export function Header({ onCollectNews, onCollectTop10News, isCollecting, isColl
   }, [searchQuery, debouncedSearch])
 
   return (
-    <header className="header-artistic">
+    <header className="sticky top-0 z-50 w-full border-b border-white/10 backdrop-blur-md">
       <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
-          {/* 로고 & 브랜드 */}
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-warm-sunset rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">AI</span>
-            </div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent font-montserrat">
+        <GlassCard className="flex items-center justify-between p-4">
+          {/* 로고 */}
+          <div className="flex items-center space-x-4">
+            <h1 className="text-2xl font-bold text-neutral-0 font-montserrat">
               AI Times Dashboard
             </h1>
           </div>
@@ -50,46 +48,46 @@ export function Header({ onCollectNews, onCollectTop10News, isCollecting, isColl
           {/* 검색바 */}
           <div className="flex-1 max-w-md mx-8">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-500 w-4 h-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-100 w-4 h-4" />
               <Input
                 type="text"
                 placeholder="뉴스 검색..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-white border-neutral-200 text-neutral-800 placeholder:text-neutral-500 focus:border-primary-500 focus:ring-primary-500"
+                className="search-bar pl-10 bg-primary-700/40 border-white/20 text-neutral-0 placeholder:text-neutral-100"
               />
             </div>
           </div>
 
           {/* 액션 버튼들 */}
-          <div className="flex items-center space-x-4">
-            <button
+          <div className="flex items-center space-x-3">
+            <Button
               onClick={onCollectNews}
               disabled={isCollecting}
-              className="btn-primary"
+              className="cta-button"
             >
               <Download className="w-4 h-4 mr-2" />
-              {isCollecting ? '수집 중...' : '뉴스 수집'}
-            </button>
+              {isCollecting ? '수집 중...' : '최신 뉴스 수집'}
+            </Button>
             
-            <button
+            <Button
               onClick={onCollectTop10News}
               disabled={isCollectingTop10}
-              className="btn-primary"
+              className="cta-button bg-accent-600 hover:bg-accent-700"
             >
               <TrendingUp className="w-4 h-4 mr-2" />
-              {isCollectingTop10 ? '수집 중...' : 'TOP 10'}
-            </button>
+              {isCollectingTop10 ? '수집 중...' : 'TOP 10 뉴스 수집'}
+            </Button>
             
             <Button
               variant="ghost"
               size="icon"
-              className="text-neutral-600 hover:text-primary-600 hover:bg-primary-50"
+              className="text-neutral-100 hover:text-neutral-0 hover:bg-primary-700/40"
             >
               <Settings className="w-5 h-5" />
             </Button>
           </div>
-        </div>
+        </GlassCard>
       </div>
     </header>
   )
