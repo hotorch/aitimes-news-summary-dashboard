@@ -1,168 +1,175 @@
-'use client';
+'use client'
 
-import { Button } from '@/components/ui/button';
-import { CheckCircle, Github, Copy, Sparkles } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
-import { useToast } from '@/hooks/use-toast';
-import axios from 'axios';
+import { useState, Suspense, useCallback } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'next/navigation'
+import { Header } from '@/components/layout/header'
+import { NewsGrid } from '@/components/news/news-grid'
+import { NewsDetailModal } from '@/components/news/news-detail-modal'
+import { EmptyState } from '@/components/news/empty-state'
+import { useToast } from '@/hooks/use-toast'
+import { newsService, collectionService } from '@/lib/supabase'
+import type { NewsArticle } from '@/lib/database.types'
 
-const PACKAGE_NAME = '@easynext/cli';
-const CURRENT_VERSION = 'v0.1.35';
+function DashboardContent() {
+  const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
+  const [summarizingId, setSummarizingId] = useState<string>()
+  const searchParams = useSearchParams()
+  const query = searchParams.get('query') || ''
+  const { toast } = useToast()
+  const queryClient = useQueryClient()
 
-function latestVersion(packageName: string) {
-  return axios
-    .get('https://registry.npmjs.org/' + packageName + '/latest')
-    .then((res) => res.data.version);
-}
-
-export default function Home() {
-  const { toast } = useToast();
-  const [latest, setLatest] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchLatestVersion = async () => {
-      try {
-        const version = await latestVersion(PACKAGE_NAME);
-        setLatest(`v${version}`);
-      } catch (error) {
-        console.error('Failed to fetch version info:', error);
+  // 뉴스 데이터 조회
+  const { data: articles = [], isLoading } = useQuery({
+    queryKey: ['news', query],
+    queryFn: async () => {
+      if (query) {
+        return await newsService.search(query)
       }
-    };
-    fetchLatestVersion();
-  }, []);
+      return await newsService.getLatestBatch()
+    },
+    staleTime: 2 * 60 * 1000, // 2분
+  })
 
-  const handleCopyCommand = () => {
-    navigator.clipboard.writeText(`npm install -g ${PACKAGE_NAME}@latest`);
-    toast({
-      description: 'Update command copied to clipboard',
-    });
-  };
+  // 공통 뉴스 수집 함수
+  const createCollectionMutation = useCallback((endpoint: string, successMessage: string) => {
+    return useMutation({
+      mutationFn: async () => {
+        const log = await collectionService.create({
+          started_at: new Date().toISOString(),
+          total_articles: 10
+        })
 
-  const needsUpdate = latest && latest !== CURRENT_VERSION;
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ logId: log.id }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`${successMessage} 수집에 실패했습니다`)
+        }
+
+        return response.json()
+      },
+      onSuccess: () => {
+        toast({
+          title: `${successMessage} 수집 완료`,
+          description: `AI Times에서 ${successMessage}를 성공적으로 수집했습니다.`,
+        })
+        queryClient.invalidateQueries({ queryKey: ['news'] })
+      },
+      onError: (error) => {
+        toast({
+          title: '수집 실패',
+          description: error.message,
+          variant: 'destructive',
+        })
+      },
+    })
+  }, [toast, queryClient])
+
+  // 뉴스 수집 뮤테이션들
+  const collectNewsMutation = createCollectionMutation('/api/collect-news', '최신 뉴스')
+  const collectTop10NewsMutation = createCollectionMutation('/api/collect-top10-news', 'TOP 10 뉴스')
+
+  // 요약 생성 뮤테이션
+  const summarizeMutation = useMutation({
+    mutationFn: async (articleId: string) => {
+      const response = await fetch('/api/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ articleId }),
+      })
+
+      if (!response.ok) {
+        throw new Error('요약 생성에 실패했습니다')
+      }
+
+      return response.json()
+    },
+    onMutate: (articleId) => {
+      setSummarizingId(articleId)
+    },
+    onSuccess: () => {
+      toast({
+        title: '요약 요청 전송 완료',
+        description: 'Make.com으로 요약 요청이 전송되었습니다. 잠시 후 요약이 업데이트됩니다.',
+      })
+      queryClient.invalidateQueries({ queryKey: ['news'] })
+    },
+    onError: (error) => {
+      toast({
+        title: '요약 실패',
+        description: error.message,
+        variant: 'destructive',
+      })
+    },
+    onSettled: () => {
+      setSummarizingId(undefined)
+    },
+  })
+
+  // 이벤트 핸들러들
+  const handleCollectNews = useCallback(() => collectNewsMutation.mutate(), [collectNewsMutation])
+  const handleCollectTop10News = useCallback(() => collectTop10NewsMutation.mutate(), [collectTop10NewsMutation])
+  const handleViewDetail = useCallback((article: NewsArticle) => setSelectedArticle(article), [])
+  const handleSummarize = useCallback((articleId: string) => summarizeMutation.mutate(articleId), [summarizeMutation])
+  const handleCloseModal = useCallback(() => setSelectedArticle(null), [])
+
+  const showEmptyState = !isLoading && articles.length === 0
+  const emptyStateType = query ? 'no-results' : 'no-data'
 
   return (
-    <div className="flex min-h-screen relative overflow-hidden">
-      {/* Main Content */}
-      <div className="min-h-screen flex bg-gray-100">
-        <div className="flex flex-col p-5 md:p-8 space-y-4">
-          <h1 className="text-3xl md:text-5xl font-semibold tracking-tighter !leading-tight text-left">
-            Easiest way to start
-            <br /> Next.js project
-            <br /> with Cursor
-          </h1>
-
-          <p className="text-lg text-muted-foreground">
-            Get Pro-created Next.js bootstrap just in seconds
-          </p>
-
-          <div className="flex items-center gap-2">
-            <Button
-              asChild
-              size="lg"
-              variant="secondary"
-              className="gap-2 w-fit rounded-full px-4 py-2 border border-black"
-            >
-              <a href="https://github.com/easynextjs/easynext" target="_blank">
-                <Github className="w-4 h-4" />
-                GitHub
-              </a>
-            </Button>
-            <Button
-              asChild
-              size="lg"
-              variant="secondary"
-              className="gap-2 w-fit rounded-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white"
-            >
-              <a href="https://easynext.org/premium" target="_blank">
-                <Sparkles className="w-4 h-4" />
-                Premium
-              </a>
-            </Button>
-          </div>
-          <Section />
-        </div>
+    <div className="background-system">
+      <div className="relative z-10">
+        <Header 
+          onCollectNews={handleCollectNews}
+          onCollectTop10News={handleCollectTop10News}
+          isCollecting={collectNewsMutation.isPending}
+          isCollectingTop10={collectTop10NewsMutation.isPending}
+        />
+        
+        <main className="container mx-auto px-4 py-8">
+          {showEmptyState ? (
+            <EmptyState 
+              type={emptyStateType}
+              onCollectNews={emptyStateType === 'no-data' ? handleCollectNews : undefined}
+            />
+          ) : (
+            <NewsGrid
+              articles={articles}
+              onViewDetail={handleViewDetail}
+              onSummarize={handleSummarize}
+              summarizingId={summarizingId}
+              isLoading={isLoading}
+            />
+          )}
+        </main>
       </div>
 
-      <div className="min-h-screen ml-16 flex-1 flex flex-col items-center justify-center space-y-4">
-        <div className="flex flex-col items-center space-y-2">
-          <p className="text-muted-foreground">
-            Current Version: {CURRENT_VERSION}
-          </p>
-          <p className="text-muted-foreground">
-            Latest Version:{' '}
-            <span className="font-bold">{latest || 'Loading...'}</span>
-          </p>
-        </div>
-
-        {needsUpdate && (
-          <div className="flex flex-col items-center space-y-2">
-            <p className="text-yellow-600">New version available!</p>
-            <p className="text-sm text-muted-foreground">
-              Copy and run the command below to update:
-            </p>
-            <div className="relative group">
-              <pre className="bg-gray-100 p-4 rounded-lg">
-                npm install -g {PACKAGE_NAME}@latest
-              </pre>
-              <button
-                onClick={handleCopyCommand}
-                className="absolute top-2 right-2 p-2 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <Copy className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      <NewsDetailModal
+        article={selectedArticle}
+        isOpen={!!selectedArticle}
+        onClose={handleCloseModal}
+        onSummarize={handleSummarize}
+        isSummarizing={summarizingId === selectedArticle?.id}
+      />
     </div>
-  );
+  )
 }
 
-function Section() {
-  const items = [
-    { href: 'https://nextjs.org/', label: 'Next.js' },
-    { href: 'https://ui.shadcn.com/', label: 'shadcn/ui' },
-    { href: 'https://tailwindcss.com/', label: 'Tailwind CSS' },
-    { href: 'https://www.framer.com/motion/', label: 'framer-motion' },
-    { href: 'https://zod.dev/', label: 'zod' },
-    { href: 'https://date-fns.org/', label: 'date-fns' },
-    { href: 'https://ts-pattern.dev/', label: 'ts-pattern' },
-    { href: 'https://es-toolkit.dev/', label: 'es-toolkit' },
-    { href: 'https://zustand.docs.pmnd.rs/', label: 'zustand' },
-    { href: 'https://supabase.com/', label: 'supabase' },
-    { href: 'https://react-hook-form.com/', label: 'react-hook-form' },
-  ];
-
+export default function Dashboard() {
   return (
-    <div className="flex flex-col py-5 md:py-8 space-y-2 opacity-75">
-      <p className="font-semibold">What&apos;s Included</p>
-
-      <div className="flex flex-col space-y-1 text-muted-foreground">
-        {items.map((item) => (
-          <SectionItem key={item.href} href={item.href}>
-            {item.label}
-          </SectionItem>
-        ))}
+    <Suspense fallback={
+      <div className="min-h-screen bg-primary-900 flex items-center justify-center">
+        <div className="glass-card p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-500 mx-auto"></div>
+          <p className="text-neutral-100 mt-4 text-center">로딩 중...</p>
+        </div>
       </div>
-    </div>
-  );
-}
-
-function SectionItem({
-  children,
-  href,
-}: {
-  children: React.ReactNode;
-  href: string;
-}) {
-  return (
-    <a
-      href={href}
-      className="flex items-center gap-2 underline"
-      target="_blank"
-    >
-      <CheckCircle className="w-4 h-4" />
-      <p>{children}</p>
-    </a>
-  );
+    }>
+      <DashboardContent />
+    </Suspense>
+  )
 }
