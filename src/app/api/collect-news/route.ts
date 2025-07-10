@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { collectAllNews } from '@/lib/scraping'
-import { supabase, collectionService } from '@/lib/supabase'
+import { getSupabaseClient, collectionService } from '@/lib/supabase'
 import type { NewsArticleInsert } from '@/lib/database.types'
 
 export async function POST(request: NextRequest) {
@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
     const scrapingResult = await collectAllNews()
     
     // 2. Supabase에 뉴스 저장
+    const supabase = getSupabaseClient()
     const savedArticles = []
     const errors = [...scrapingResult.errors]
     
