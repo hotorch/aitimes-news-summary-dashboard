@@ -1,23 +1,27 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from './database.types'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+// 환경 변수 체크를 런타임에서만 수행하도록 함수로 래핑
+function getSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Supabase URL이나 Anon Key가 설정되지 않았습니다')
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase URL이나 Anon Key가 설정되지 않았습니다')
+  }
+
+  return createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false, // 개인용 도구이므로 세션 유지 불필요
+    },
+  })
 }
-
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: false, // 개인용 도구이므로 세션 유지 불필요
-  },
-})
 
 // 뉴스 기사 관련 함수들
 export const newsService = {
   // 모든 뉴스 기사 조회 (최신순)
   async getAll() {
+    const supabase = getSupabaseClient()
     const { data, error } = await supabase
       .from('news_articles')
       .select('*')
@@ -30,6 +34,7 @@ export const newsService = {
 
   // 최신 수집된 뉴스 조회 (순위별)
   async getLatestBatch() {
+    const supabase = getSupabaseClient()
     // 가장 최근 수집 시간을 먼저 구함
     const { data: latest } = await supabase
       .from('news_articles')
@@ -55,6 +60,7 @@ export const newsService = {
 
   // 특정 뉴스 기사 조회
   async getById(id: string) {
+    const supabase = getSupabaseClient()
     const { data, error } = await supabase
       .from('news_articles')
       .select('*')
@@ -67,6 +73,7 @@ export const newsService = {
 
   // 검색
   async search(query: string) {
+    const supabase = getSupabaseClient()
     const { data, error } = await supabase
       .from('news_articles')
       .select('*')
@@ -79,6 +86,7 @@ export const newsService = {
 
   // 요약 업데이트
   async updateSummary(id: string, summary: string) {
+    const supabase = getSupabaseClient()
     const { data, error } = await supabase
       .from('news_articles')
       .update({ 
@@ -98,6 +106,7 @@ export const newsService = {
 export const collectionService = {
   // 수집 로그 생성
   async create(data: { started_at: string; total_articles?: number }) {
+    const supabase = getSupabaseClient()
     const { data: log, error } = await supabase
       .from('collection_logs')
       .insert(data)
@@ -115,6 +124,7 @@ export const collectionService = {
     failed_count: number
     error_details?: any
   }) {
+    const supabase = getSupabaseClient()
     const { data: log, error } = await supabase
       .from('collection_logs')
       .update(data)
@@ -128,6 +138,7 @@ export const collectionService = {
 
   // 최근 수집 로그들 조회
   async getRecent(limit = 10) {
+    const supabase = getSupabaseClient()
     const { data, error } = await supabase
       .from('collection_logs')
       .select('*')
